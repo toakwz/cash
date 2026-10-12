@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AURUM — Fine Watches &amp; Jewellery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   MASSIF — a construction studio.
+
+   The hero is a construction-site maquette built in three.js — a
+   lattice tower crane, a frame that rises floor by floor, scaffold and
+   site props — lit with a studio environment and soft shadows, and
+   driven by scroll. The model and the grain are generated in this file;
+   the only assets are the five site photographs in ./img, which are
+   served from beside the page rather than hotlinked.
+   ═══════════════════════════════════════════════════════════════ */
+:root{
+  /* White build. --bg / --fg are roles, not colours: swap the two and
+     the whole site inverts, which is how the dark build became this one. */
+  --bg:#F5F3EF;              /* warm paper, not clinical white */
+  --fg:#121110;
+  --orange:#FF4D14;
+  --concrete:#6E685C;        /* dark enough to pass on paper at 10.5px */
+  --steel:#E4E0D8;
+  --line:rgba(18,17,16,.15);
+  --pad:clamp(20px,4vw,72px);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:'Archivo',system-ui,-apple-system,sans-serif;
+  font-size:16px; line-height:1.6; font-weight:400;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+body.lock{overflow:hidden;height:100vh}
+a{color:inherit;text-decoration:none}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+
+/* ── display type. Tight, heavy, slightly negative tracking. ───── */
+.d1,.d2,.d3{
+  font-weight:900; line-height:.86; letter-spacing:-.04em;
+  text-transform:uppercase; margin:0;
+}
+/* vh is in the clamp on purpose: the hero headline is two lines and has
+   to share a fixed-height screen with the nav and the standfirst, so on a
+   short window it must shrink on height, not just width. */
+.d1{font-size:clamp(38px,min(10vw,15vh),168px)}
+.d2{font-size:clamp(38px,7.2vw,112px)}
+.d3{font-size:clamp(28px,4.2vw,62px); line-height:.94}
+.label{
+  font-family:'JetBrains Mono',monospace; font-size:10.5px;
+  letter-spacing:.24em; text-transform:uppercase; color:var(--concrete);
+}
+.rule{height:1px;background:var(--line);width:100%}
+
+/* ── overlays ──────────────────────────────────────────────────── */
+#grain{position:fixed;inset:-1px;z-index:60;pointer-events:none;
+  opacity:.055;mix-blend-mode:multiply;background-repeat:repeat;background-size:170px 170px}
+/* The model canvas sits behind the hero copy. GSAP fades it out once the
+   hero is scrolled past; the loader covers it until the scene is ready. */
+#scene{position:fixed;inset:0;width:100%;height:100%;z-index:1;
+  display:block;pointer-events:none}
+.cursor{position:fixed;top:0;left:0;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;
+  border-radius:50%;background:var(--orange);z-index:70;pointer-events:none;
+  /* a paper halo, so the dot is legible on a dark truss as well as on paper */
+  box-shadow:0 0 0 1.6px var(--bg);will-change:transform;
+  transition:width .3s cubic-bezier(.4,0,.2,1),height .3s cubic-bezier(.4,0,.2,1),
+             margin .3s cubic-bezier(.4,0,.2,1),opacity .3s}
+
+/* The setting-out target. Step 01 of the method is "Survey & ground",
+   the drawings are covered in these marks, so the pointer is one: a
+   reticle that trails the dot and settles onto it, ticked N/E/S/W and
+   turning about once every half minute. Every stroke is drawn twice —
+   a paper halo under a dark hairline — so it survives a black steel
+   photograph and a bright sky equally. */
+.curs{position:fixed;top:0;left:0;width:64px;height:64px;margin:-32px 0 0 -32px;
+  z-index:69;pointer-events:none;will-change:transform;opacity:0;
+  transition:opacity .4s;display:grid;place-items:center}
+.curs.ready{opacity:1}
+.curs svg{grid-area:1/1;overflow:visible;
+  transition:transform .42s cubic-bezier(.22,1,.36,1),opacity .42s}
+/* Paper, so it is invisible over paper and a clean stamped disc over a
+   photograph — which is the only way a hairline reticle stays readable
+   on rust-orange steel. The brand colour cannot do this job: orange on
+   an orange truss is orange. */
+.curs__fill{fill:var(--bg);opacity:.32;transition:opacity .35s}
+.curs .hal{fill:none;stroke:var(--bg);stroke-width:3.6;stroke-linecap:round;opacity:.8}
+.curs .ln{fill:none;stroke:var(--fg);stroke-width:1.15;stroke-linecap:round;opacity:.52;
+  transition:stroke .35s,opacity .35s}
+.curs__spin{transform-origin:32px 32px;animation:curspin 34s linear infinite}
+@keyframes curspin{to{transform:rotate(360deg)}}
+.curs__tag{grid-area:1/1;font-family:'JetBrains Mono',monospace;font-size:9px;
+  letter-spacing:.22em;text-transform:uppercase;color:var(--orange);white-space:nowrap;
+  font-weight:500;
+  opacity:0;transform:translateY(4px);transition:opacity .3s,transform .3s}
+/* the dot stands out of the way when the reticle has something to say */
+.cursor.hide{opacity:0}
+
+/* over something you can act on, the reticle opens and takes the brand colour */
+.curs.on svg{transform:scale(2.05)}
+.curs.on .ln{stroke:var(--orange);opacity:.95}
+.curs.on .curs__fill{opacity:.9}
+.curs.tag svg{transform:scale(3.15)}
+/* dark ring on a paper disc reads on anything; the ticks keep the orange */
+.curs.tag .ring{stroke:var(--fg);opacity:.9}
+.curs.tag .ticks{stroke:var(--orange);opacity:1}
+.curs.tag .curs__fill{opacity:1}
+.curs.tag .curs__tag{opacity:1;transform:translateY(0);color:var(--fg)}
+.curs.down svg{transform:scale(.82)}
+/* Standing still — which is most of what a pointer does while the page
+   scrolls under it — the instrument stands down instead of sitting
+   there as a loose dot. */
+.curs.still:not(.on):not(.tag) svg{transform:scale(.72);opacity:.42}
+.cursor.still:not(.hide){width:7px;height:7px;margin:-3.5px 0 0 -3.5px;opacity:.6}
+
+@media (hover:hover) and (pointer:fine){
+  html{cursor:none}
+  a,button,.btn,.xray,.plate,.cap{cursor:none}
+}
+@media (hover:none),(pointer:coarse){.cursor,.curs{display:none}}
+
+/* ── loader ────────────────────────────────────────────────────── */
+#loader{position:fixed;inset:0;z-index:100;background:var(--bg);
+  display:flex;align-items:flex-end;padding:var(--pad);
+  padding-bottom:calc(var(--pad) + 62px);   /* clear the tape below */
+  will-change:transform}
+.ld__row{width:100%;display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+
+/* The counter is an odometer, not a number being retyped: three digit
+   columns, each translated by its own continuous fraction, so units
+   spin, tens crawl and the hundred arrives once. The eleventh cell in
+   every column is a second 0 — that is what lets 9 roll forward into 0
+   instead of snapping back through eight digits. */
+.ld__n{color:var(--orange);font-weight:900;font-size:clamp(56px,13vw,172px);
+  line-height:1;letter-spacing:-.05em;display:flex;margin-top:4px}
+/* The cells are 1em but a digit does not fill one, so a 1em window
+   leaves slack for the neighbouring digit to show through during a
+   flick — which reads as two numbers rather than one rolling. Measured
+   off the face itself (Archivo 900, canvas TextMetrics): the ink runs
+   0.134em → 0.846em inside the cell, so the window is that 0.712em and
+   the column is seated by 0.13em to put the ink at the top of it. */
+.ld__d{height:.72em;overflow:hidden}
+.ld__d i{display:block;will-change:transform}
+.ld__d b{display:block;height:1em;line-height:1;font-weight:inherit;font-style:normal}
+
+/* A ruled tape rather than a bare line — minor tick every 2, major
+   every 10 — with the five stages of the programme marked where they
+   actually fall. Each one lights as the fill crosses it, so what you
+   watch is a programme being worked through, not a percentage. */
+.ld__tape{position:absolute;left:var(--pad);right:var(--pad);bottom:var(--pad)}
+.ld__stages{position:relative;height:15px;margin-bottom:9px}
+.ld__stage{position:absolute;bottom:0;transform:translateX(-50%);
+  font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:.18em;
+  color:var(--concrete);opacity:.55;transition:color .4s,opacity .4s}
+.ld__stage.hit{color:var(--orange);opacity:1}
+.ld__stage:first-child{transform:none}
+.ld__ticks{position:relative;height:9px}
+.ld__ticks i{position:absolute;bottom:0;width:1px;background:var(--line)}
+.ld__bar{position:relative;height:1px;background:var(--line)}
+.ld__bar i{display:block;height:100%;width:0;background:var(--orange)}
+
+/* ── nav ───────────────────────────────────────────────────────── */
+.nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;
+  align-items:center;justify-content:space-between;padding:22px var(--pad);
+  color:var(--fg)}
+/* Over the hero this is invisible — the hero is paper too. Everywhere
+   else it is the difference between a header and two lines of type
+   lying on top of a paragraph. */
+.nav::before{content:'';position:absolute;inset:-2px 0 -20px;z-index:-1;pointer-events:none;
+  background:linear-gradient(180deg,var(--bg) 62%,rgba(245,243,239,0))}
+.nav__logo{font-weight:900;font-size:17px;letter-spacing:-.02em;text-transform:uppercase}
+.nav__links{display:flex;gap:34px}
+.nav__links a{font-family:'JetBrains Mono',monospace;font-size:10.5px;
+  letter-spacing:.2em;text-transform:uppercase;position:relative;padding-bottom:3px}
+.nav__links a::after{content:'';position:absolute;left:0;bottom:0;height:1px;
+  width:0;background:var(--fg);transition:width .4s cubic-bezier(.4,0,.2,1)}
+.nav__links a:hover::after{width:100%}
+/* The links used to be display:none below 800px, which left a phone
+   with no navigation at all. They stay — they just get tighter, and the
+   founding date goes first, because it is the only decorative thing in
+   the row. */
+@media (max-width:800px){.nav__links{gap:18px}
+  .nav__links a{font-size:9.5px;letter-spacing:.14em}}
+@media (max-width:620px){.nav{padding:16px var(--pad)}
+  .nav > .label{display:none}
+  .nav__links{gap:14px}}
+@media (max-width:380px){.nav__links{gap:10px}
+  .nav__logo{font-size:15px}
+  .nav__links a{font-size:9px;letter-spacing:.08em}}
+.prog{position:fixed;top:0;left:0;height:2px;width:0;background:var(--orange);z-index:55}
+
+/* ── hero ──────────────────────────────────────────────────────── */
+.hero{position:relative;height:100vh;z-index:2}
+.hero__in{position:absolute;inset:0;padding:var(--pad);
+  padding-top:clamp(78px,11vh,124px);              /* clear the fixed nav */
+  display:flex;flex-direction:column;justify-content:space-between}
+.hero__top{max-width:520px}
+.hero__bot{display:flex;align-items:flex-end;justify-content:space-between;gap:30px;flex-wrap:wrap}
+/* The acts are absolutely stacked, so the rail has to reserve two lines
+   of the display size itself or the standfirst slides up underneath. */
+.hero__acts{position:relative;height:calc(clamp(38px,min(10vw,15vh),168px) * 1.8)}
+.act{position:absolute;left:0;top:0;white-space:nowrap;opacity:0}
+.act em{font-style:normal;color:var(--orange)}
+.hero__meta{max-width:300px;font-size:14.5px;color:#57534B}
+/* The model is pushed up in portrait, but a tall thin screen can still
+   bring the site's shadow down into the type. This is the floor. */
+@media (max-aspect-ratio:115/100){
+  .hero__in::before{content:'';position:absolute;left:0;right:0;bottom:0;
+    height:54%;pointer-events:none;
+    background:linear-gradient(0deg,var(--bg) 42%,rgba(245,243,239,0))}
+}
+
+/* ── generic section ───────────────────────────────────────────── */
+.sec{position:relative;z-index:2;background:var(--bg);padding:clamp(90px,13vw,190px) var(--pad)}
+.sec--edge{padding-left:0;padding-right:0}
+.head{display:flex;align-items:baseline;gap:18px;margin-bottom:52px}
+.head span{width:7px;height:7px;background:var(--orange);flex:none;border-radius:50%}
+
+/* manifesto */
+.man{max-width:1150px}
+.man p{font-size:clamp(24px,3.6vw,54px);line-height:1.16;font-weight:600;
+  letter-spacing:-.025em;margin:0}
+.man .w{display:inline-block;opacity:.13}
+.man .hl{color:var(--orange)}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.stat{background:var(--bg);padding:44px 28px}
+.stat__n{font-weight:900;font-size:clamp(40px,5.6vw,86px);line-height:.9;letter-spacing:-.04em}
+.stat__n sup{font-size:.4em;vertical-align:super;color:var(--orange);font-weight:700}
+.stat__l{margin-top:14px}
+@media (max-width:860px){.stats{grid-template-columns:repeat(2,1fr)}}
+
+/* capabilities — horizontal */
+.caps{position:relative;z-index:2;background:var(--bg);overflow:hidden}
+.caps__track{display:flex;gap:1px;background:var(--line);will-change:transform}
+.cap{flex:none;width:clamp(300px,34vw,470px);background:var(--bg);position:relative;
+  padding:46px 36px 40px;min-height:66vh;display:flex;flex-direction:column;
+  /* was space-between, which pushed a 130px photograph to the floor and
+     left a third of every card empty. The art takes the slack instead. */
+  justify-content:flex-start}
+/* The live card is marked by its number and its photograph coming up to
+   full grade — no rule. Two orange lines stacked above each other read
+   as chrome, not as signal. */
+.cap.is-live .cap__n{color:var(--orange)}
+/* 66vh of card with three lines in it is a hole, not a layout: on a
+   phone the card shrinks to its content and the art follows the copy
+   instead of being pushed to the floor. */
+@media (max-width:760px){
+  .cap{width:min(80vw,330px);min-height:0;padding:34px 24px 30px}
+}
+.cap__n{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--orange);
+  letter-spacing:.2em}
+.cap h3{margin:26px 0 0;font-size:clamp(24px,2.7vw,38px);font-weight:800;
+  letter-spacing:-.03em;line-height:1.02;text-transform:uppercase}
+.cap p{margin:16px 0 0;font-size:15px;color:#5E594F;max-width:38ch}
+.cap__art{flex:1;min-height:210px;margin-top:30px;background-size:cover;background-position:center;
+  /* .55 was tuned against a dark ground; light art at that opacity over
+     paper all but disappears. */
+  /* Colour, not a duotone — but a common grade, so five photographs
+     from five sources still read as one set. saturate lifts hi-vis and
+     painted steel (which is most of the colour on a site anyway) and
+     the sliver of sepia ties them to the paper without greying them. */
+  filter:saturate(1.12) contrast(1.05) sepia(.06);
+  opacity:.94;transition:opacity .5s,filter .5s}
+/* after the base rule, not before it — the old mobile override sat above
+   and lost on source order, so it had never done anything */
+@media (max-width:760px){.cap__art{flex:none;min-height:0;height:212px;margin-top:24px}}
+.cap:hover .cap__art,.cap.is-live .cap__art{opacity:1;
+  filter:saturate(1.24) contrast(1.06) sepia(0)}
+.caps__intro{padding:clamp(90px,13vw,170px) var(--pad) 32px}
+/* Pinned, the section IS the viewport — so give it a definite height and
+   let the rail take whatever the intro leaves. Cards stretch to the rail,
+   the photograph takes the slack inside them, and nothing can run off the
+   bottom however tall the heading gets. */
+@media (min-width:861px){
+  .caps{height:100vh;display:flex;flex-direction:column}
+  .caps__intro{flex:none;padding:clamp(62px,8vh,104px) var(--pad) 22px}
+  .caps__intro h2{font-size:clamp(34px,5vw,72px)}
+  .caps__track{flex:1;min-height:0;align-items:stretch}
+  .cap{min-height:0;padding:34px 36px 34px}
+  .cap__art{min-height:0}
+}
+.capbar{display:flex;gap:1px;margin-top:30px;background:var(--line)}
+.capbar__seg{flex:1;position:relative;padding-top:13px;background:var(--bg)}
+.capbar__seg::before{content:'';position:absolute;left:0;top:0;height:2px;width:100%;
+  background:var(--line)}
+.capbar__seg b{font-family:'JetBrains Mono',monospace;font-size:9.5px;font-weight:400;
+  letter-spacing:.2em;color:var(--concrete);transition:color .4s}
+.capbar__seg.done b{color:var(--fg)}
+
+/* work plates */
+.work__grid{display:grid;grid-template-columns:repeat(12,1fr);gap:clamp(14px,2vw,30px)}
+.plate{position:relative;overflow:hidden;background:var(--steel)}
+.plate__img{position:absolute;inset:0;background-size:cover;background-position:center;
+  transform:scale(1.16);will-change:transform;
+  filter:saturate(1.12) contrast(1.05) sepia(.06);transition:filter .6s}
+.plate:hover .plate__img{filter:saturate(1.24) contrast(1.06) sepia(0)}
+.plate__mask{position:absolute;inset:0;background:var(--bg);transform-origin:bottom}
+.plate__cap{position:absolute;left:0;bottom:0;padding:24px;z-index:2;width:100%;
+  display:flex;justify-content:space-between;align-items:flex-end;gap:14px;
+  background:linear-gradient(0deg,rgba(245,243,239,.96),rgba(245,243,239,.62) 46%,transparent)}
+.plate h4{margin:0;font-size:clamp(17px,1.9vw,26px);font-weight:800;
+  text-transform:uppercase;letter-spacing:-.02em;line-height:1}
+/* The meta sits on a photograph, not on paper: --concrete was picked to
+   pass against the page and has nothing to hold on to here. Orange is
+   the one colour that reads over a bright sky and a dark truss alike. */
+.plate__cap .label{color:var(--orange)}
+.p1{grid-column:1/8;aspect-ratio:16/11}
+.p2{grid-column:8/13;aspect-ratio:3/4;align-self:end}
+.p3{grid-column:3/13;aspect-ratio:16/8}
+@media (max-width:820px){
+  .p1,.p2,.p3{grid-column:1/13;aspect-ratio:4/3}
+}
+/* Side by side, the meta wraps into the second line of the title. Stack
+   it, and put it above — a caption line, which is what it is. */
+@media (max-width:620px){
+  .plate__cap{flex-direction:column;align-items:flex-start;gap:7px;padding:18px;
+    background:linear-gradient(0deg,rgba(245,243,239,.97),rgba(245,243,239,.82) 62%,rgba(245,243,239,0))}
+  .plate__cap .label{order:-1}
+  .plate h4{font-size:clamp(19px,5.2vw,26px)}
+}
+
+/* process */
+.proc{display:grid;grid-template-columns:repeat(12,1fr);gap:clamp(14px,2vw,30px)}
+/* Act two — the method demonstrated on the model.
+
+   Two things this layout has to respect. A pinned section must stay
+   OPAQUE or the rest of the page scrolls visibly underneath it, so the
+   paper moves to the CANVAS for the duration and the section goes
+   transparent above it: canvas paper → model → method. And the layout
+   must be STATIC, not switched on by the .is-act2 class, because GSAP
+   bakes the element's height at pin time — anything the class changes
+   afterwards is measured against the old box and the copy ends up a
+   screen and a half tall. So only state lives on the class. */
+@media (min-width:861px){
+  #proc{min-height:100vh;display:flex;align-items:center;background:transparent;
+    padding-top:clamp(70px,9vh,104px);padding-bottom:clamp(34px,5vh,62px)}
+  #proc .proc{position:relative;z-index:4;width:100%}
+  /* both columns stack left; they need explicit ROWS or grid drops them
+     in one cell and the steps hide under the heading */
+  #proc .proc__sticky,#proc .proc__list{grid-column:1/7}
+  #proc .proc__sticky{grid-row:1;position:static;margin-bottom:20px}
+  #proc .proc__list{grid-row:2}
+  #proc .head{margin-bottom:20px}
+  #proc .proc__sticky h2{font-size:clamp(24px,2.8vw,40px)}
+  /* A rail, not a list. One stage is open; the rest are a single line
+     each, waiting their turn — which is how a programme is actually
+     read, and it stops the column being a wall of five paragraphs. */
+  #proc .proc__list{position:relative;padding-left:40px}
+  #proc .proc__list::before{content:'';position:absolute;left:0;top:14px;bottom:14px;
+    width:1px;background:var(--line)}
+  #proc .prail{position:absolute;left:-1px;top:14px;width:3px;height:0;
+    background:var(--orange);transition:height .55s cubic-bezier(.4,0,.2,1)}
+  #proc .step{padding:9px 0;gap:20px;position:relative;border-top:none}
+  #proc .step + .step{border-top:none}
+  #proc .step:last-child{border-bottom:none}
+  #proc .step::after{content:'';position:absolute;left:-44px;top:20px;width:9px;height:9px;
+    border-radius:50%;background:var(--bg);border:1px solid var(--line);
+    transition:background .4s,border-color .4s,transform .4s}
+  #proc .step.on::after{background:var(--orange);border-color:var(--orange);transform:scale(1.35)}
+  #proc .step h4{font-size:clamp(17px,1.7vw,22px)}
+  /* the paragraph opens only for the stage being demonstrated */
+  #proc .step p{margin:0;font-size:13.5px;max-width:42ch;overflow:hidden;
+    max-height:0;opacity:0;
+    transition:max-height .55s cubic-bezier(.4,0,.2,1),opacity .4s,margin-top .55s}
+  #proc .step.on p{max-height:110px;opacity:1;margin-top:6px}
+}
+#proc.is-act2{z-index:4}
+#proc.is-act2 .step{transition:opacity .45s}
+#proc.is-act2 .step:not(.on){opacity:.28}
+#proc.is-act2 .step.on .step__n{color:var(--orange)}
+/* opacity via the class, NOT a tween: a gsap.to(canvas,{overwrite:true})
+   here kills the hero's own scrubbed fade permanently, and the model
+   never comes back when you scroll up to it again. */
+#scene.act2{z-index:3;background:var(--bg);opacity:1 !important}
+.lvl{position:fixed;inset:0;z-index:5;pointer-events:none;opacity:0;transition:opacity .6s}
+#proc.is-act2 .lvl{opacity:1}
+.lvl__t{position:absolute;top:0;left:0;width:26px;height:1px;background:var(--fg);opacity:.3}
+.lvl__t.maj{width:44px;opacity:.5}
+.lvl__t b{position:absolute;left:52px;top:-7px;font-family:'JetBrains Mono',monospace;
+  font-size:9.5px;letter-spacing:.14em;color:var(--concrete);white-space:nowrap}
+.lvl__now{position:absolute;top:0;left:0}
+.lvl__now i{position:absolute;top:0;left:0;width:72px;height:1px;background:var(--orange)}
+.lvl__now b{position:absolute;left:52px;top:-17px;font-family:'JetBrains Mono',monospace;
+  font-size:11px;letter-spacing:.14em;color:var(--orange);white-space:nowrap}
+#proc.is-act2 .step{transition:opacity .45s,color .45s}
+#proc.is-act2 .step:not(.on){opacity:.3}
+#proc.is-act2 .step.on .step__n{color:var(--orange)}
+.proc__sticky{grid-column:1/5;position:sticky;top:22vh;height:max-content}
+.proc__list{grid-column:6/13}
+.step{padding:38px 0;border-top:1px solid var(--line);display:flex;gap:26px;align-items:flex-start}
+.step:last-child{border-bottom:1px solid var(--line)}
+.step__n{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--orange);
+  padding-top:7px;flex:none;letter-spacing:.18em}
+.step h4{margin:0;font-size:clamp(21px,2.5vw,34px);font-weight:800;
+  text-transform:uppercase;letter-spacing:-.028em;line-height:1}
+.step p{margin:11px 0 0;color:#5E594F;font-size:15px;max-width:46ch}
+@media (max-width:860px){
+  .proc__sticky,.proc__list{grid-column:1/13}
+  .proc__sticky{position:static;margin-bottom:34px}
+}
+
+/* marquee */
+.marq{overflow:hidden;border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);padding:20px 0;background:var(--bg);
+  position:relative;z-index:2}
+.marq__in{display:flex;gap:46px;white-space:nowrap;will-change:transform}
+.marq__in span{font-weight:900;font-size:clamp(26px,4.4vw,64px);
+  text-transform:uppercase;letter-spacing:-.035em;display:flex;align-items:center;gap:46px}
+.marq__in i{width:12px;height:12px;background:var(--orange);border-radius:50%;
+  display:inline-block;font-style:normal;flex:none}
+
+/* cta + footer */
+.cta{position:relative;z-index:2;background:var(--bg);text-align:center;
+  padding:clamp(110px,17vw,230px) var(--pad)}
+.btn{display:inline-flex;align-items:center;gap:14px;margin-top:44px;
+  padding:19px 34px;border:1px solid var(--fg);border-radius:999px;
+  font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.2em;
+  text-transform:uppercase;position:relative;overflow:hidden;isolation:isolate}
+.btn::before{content:'';position:absolute;inset:0;background:var(--fg);
+  transform:translateY(101%);transition:transform .5s cubic-bezier(.4,0,.2,1);z-index:-1}
+.btn:hover{color:var(--bg)}
+.btn:hover::before{transform:translateY(0)}
+.foot{position:relative;z-index:2;background:var(--bg);
+  padding:clamp(150px,23vw,360px) var(--pad) 30px}
+
+/* 190 = 804 / 4.23, from the measured width of MASSIF in Archivo 900 at
+   1em. It was 227 — the word filling the whole viewBox — but the crane
+   has to stand somewhere, and a mast outside the box is a mast clipped
+   at the window edge. The word gives up 156 units and gains a machine. */
+/* Room above for the crane, which stands outside the viewBox — as the
+   FOOTER's padding, not the mark's margin. A top margin on the first
+   child collapses out through a parent with no top padding, so it sat
+   outside <footer>: the pin measured a box 360px shorter than the one on
+   screen, and the lift's end ran past the bottom of the page. */
+.foot__mark{margin:0 0 clamp(26px,4vw,52px)}
+.foot__mark svg{display:block;width:100%;height:auto;overflow:visible}
+.mk{font-family:'Archivo',sans-serif;font-weight:900;font-size:190px}
+.mk--built{fill:var(--fg)}
+.mk--buried{fill:none;stroke:var(--orange);stroke-width:2.2;
+  stroke-dasharray:10 8;animation:mkdash 14s linear infinite}
+@keyframes mkdash{to{stroke-dashoffset:-180}}
+/* The crane is drawn, not painted — hairlines like the rest of the
+   footer's line work, with the orange kept for the parts that move. */
+.mk__crane line,.mk__crane path{stroke:var(--fg);stroke-width:1.5;fill:none;opacity:.42}
+.mk__crane .hot{stroke:var(--orange);opacity:1;stroke-width:2.6}
+.mk__crane rect{fill:none;stroke:var(--fg);stroke-width:1.5;opacity:.42}
+.mk__rig{opacity:1}
+.mk__rope{stroke:var(--fg);stroke-width:1.4;opacity:.45}
+.mk__hook path{fill:none;stroke:var(--orange);stroke-width:3.4;stroke-linecap:round}
+.mk__ground line{stroke:var(--fg);stroke-width:1;opacity:.28}
+.mk__ticks line{stroke:var(--fg);stroke-width:1;opacity:.2}
+@media (prefers-reduced-motion:reduce){.mk--buried{animation:none}}
+
+.foot__grid{display:flex;justify-content:space-between;gap:26px;flex-wrap:wrap;
+  padding-top:34px;border-top:1px solid var(--line)}
+.foot__grid div{min-width:150px}
+.foot__grid p{margin:9px 0 0;font-size:14px;color:#5E594F}
+
+/* ── showcase layer ──────────────────────────────────────────────── */
+html.lenis, html.lenis body{height:auto}
+.lenis.lenis-smooth{scroll-behavior:auto !important}
+.lenis.lenis-stopped{overflow:hidden}
+
+/* live telemetry, read straight off the model every frame */
+.hud{position:fixed;right:var(--pad);bottom:clamp(92px,13vh,128px);z-index:20;width:214px;
+  padding:13px 16px 12px;border:1px solid var(--line);background:rgba(245,243,239,.74);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);pointer-events:none;
+  font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--concrete)}
+.hud__head{display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:8px;color:var(--fg)}
+.hud__head i{width:7px;height:7px;border-radius:50%;background:var(--orange);
+  animation:hudblink 1.8s steps(1) infinite}
+@keyframes hudblink{50%{opacity:.18}}
+.hud__row{display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--line)}
+.hud__row b{font-weight:500;color:var(--fg);font-variant-numeric:tabular-nums}
+.hud__bar{height:2px;background:var(--line);margin-top:9px}
+.hud__bar i{display:block;height:100%;width:0;background:var(--orange)}
+@media (max-width:900px){.hud{display:none}}
+
+/* annotations pinned to points on the model */
+.notes{position:fixed;inset:0;z-index:15;pointer-events:none}
+.note{position:absolute;left:0;top:0;opacity:0;transition:opacity .45s ease;will-change:transform}
+.note.on{opacity:1}
+.note i{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;
+  background:var(--bg);border:2px solid var(--orange)}
+.note i::after{content:'';position:absolute;left:50%;top:50%;width:28px;height:28px;
+  margin:-14px 0 0 -14px;border-radius:50%;border:1px solid var(--orange);
+  animation:noteping 2.2s ease-out infinite}
+@keyframes noteping{from{transform:scale(.3);opacity:.9}to{transform:scale(1.5);opacity:0}}
+.note span{position:absolute;left:0;bottom:0;padding:0 0 38px 12px;white-space:nowrap;
+  border-left:1px solid var(--orange);font-family:'JetBrains Mono',monospace;font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--concrete);line-height:1.55}
+.note span b{display:block;color:var(--fg);font-weight:500}
+@media (max-width:900px){.notes{display:none}}   /* they land on the mast below this */
+
+/* drawing / built toggle */
+.xray{display:inline-flex;align-items:center;gap:10px;margin-top:18px;
+  padding:11px 17px 11px 12px;border:1px solid var(--fg);border-radius:999px;
+  background:transparent;color:var(--fg);cursor:pointer;font-family:'JetBrains Mono',monospace;
+  font-size:10px;letter-spacing:.18em;text-transform:uppercase;
+  transition:background .35s,color .35s}
+.xray i{width:17px;height:17px;border-radius:50%;border:1.5px dashed var(--orange);
+  transition:transform .7s cubic-bezier(.4,0,.2,1)}
+.xray:hover i{transform:rotate(180deg)}
+.xray.is-drawing{background:var(--fg);color:var(--bg)}
+
+/* headline letters, for the per-act reveal */
+.act{perspective:900px}
+.act .ch{display:inline-block;transform-origin:50% 100%;will-change:transform}
+
+/* the first section rides up over the model like a sheet */
+.sec--sheet{border-radius:30px 30px 0 0;box-shadow:0 -30px 80px rgba(18,17,16,.07)}
+
+@media (prefers-reduced-motion:reduce){
+  .man .w{opacity:1 !important}
+}
+</style>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preload" as="script" href="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js">
+<link rel="preload" as="script" href="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js">
+<link rel="preload" as="script" href="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js">
+<link rel="modulepreload" href="js/massif-fast-scene.js">
+</head>
+<body class="lock">
+
+<div id="grain"></div>
+<div class="cursor"></div>
+<div class="curs" aria-hidden="true">
+  <svg viewBox="0 0 64 64" width="64" height="64">
+    <circle class="curs__fill" cx="32" cy="32" r="13"/>
+    <g class="curs__spin">
+      <circle class="hal" cx="32" cy="32" r="13"/>
+      <path class="hal" d="M32 14.5V9.5M32 49.5v5M14.5 32h-5M49.5 32h5"/>
+      <circle class="ln ring" cx="32" cy="32" r="13"/>
+      <path class="ln ticks" d="M32 14.5V9.5M32 49.5v5M14.5 32h-5M49.5 32h5"/>
+    </g>
+  </svg>
+  <b class="curs__tag"></b>
+</div>
+<div class="prog"></div>
+
+<div id="loader">
+  <div class="ld__row">
+    <div>
+      <div class="label">Aurum — Fine Watches &amp; Jewellery</div>
+      <div class="ld__n" id="ldn" aria-hidden="true"></div>
+    </div>
+    <div class="label" id="ldtask">Surveying</div>
+  </div>
+  <div class="ld__tape">
+    <div class="ld__stages"></div>
+    <div class="ld__ticks"></div>
+    <div class="ld__bar"><i></i></div>
+  </div>
+</div>
+
+<canvas id="scene"></canvas>
+
+<aside class="hud" aria-hidden="true">
+  <div class="hud__head"><span>Site telemetry</span><i></i></div>
+  <div class="hud__row"><span>Stage</span><b data-hud="stage">01 / 04</b></div>
+  <div class="hud__row"><span>Floor</span><b data-hud="floor">03 / 11</b></div>
+  <div class="hud__row"><span>Height</span><b data-hud="height">10.2 m</b></div>
+  <div class="hud__row"><span>Slew</span><b data-hud="slew">044°</b></div>
+  <div class="hud__row"><span>Hook</span><b data-hud="hook">39.3 m</b></div>
+  <div class="hud__row"><span>Load</span><b data-hud="load">—</b></div>
+  <div class="hud__bar"><i></i></div>
+</aside>
+
+<div class="notes" aria-hidden="true">
+  <div class="note" data-note="crane"><i></i><span>Tower crane<b>50 m · 46 m jib</b></span></div>
+  <div class="note" data-note="core"><i></i><span>Slipform core<b>a floor ahead</b></span></div>
+  <div class="note" data-note="frame"><i></i><span>In-situ frame<b>11 floors · 3.4 m</b></span></div>
+  <div class="note" data-note="ties"><i></i><span>Mast ties<b>15 m &amp; 31 m</b></span></div>
+  <div class="note" data-note="beam"><i></i><span>Steel beam<b>12 m · 2.4 t</b></span></div>
+  <div class="note" data-note="roof"><i></i><span>Topped out<b>37.4 m</b></span></div>
+</div>
+
+<header class="nav">
+  <a class="nav__logo" href="#top">Aurum<span style="color:var(--orange)">.</span></a>
+  <nav class="nav__links">
+    <a href="#work">Pieces</a><a href="#caps">Collections</a>
+    <a href="#proc">Craft</a><a href="#contact">Visit</a>
+  </nav>
+  <div class="label">EST. 1994 — 03 SALONS</div>
+</header>
+
+<main>
+  <!-- ══ hero: pinned, four acts, the site model builds under it ══ -->
+  <section class="hero" id="top">
+    <div class="hero__in">
+      <div class="hero__top">
+        <div class="label">01 — Watches &amp; Fine Jewellery</div>
+      </div>
+      <div>
+        <div class="hero__acts">
+          <h1 class="d1 act" data-act="0">We cut<br>the <em>stone</em>.</h1>
+          <h1 class="d1 act" data-act="1">Then the<br><em>setting</em>.</h1>
+          <h1 class="d1 act" data-act="2">Then the<br><em>finish</em>.</h1>
+          <h1 class="d1 act" data-act="3">That is<br><em>Aurum</em>.</h1>
+        </div>
+        <div class="hero__bot" style="margin-top:34px">
+          <div>
+            <p class="hero__meta">Independent watch and fine jewellery house. Thirty-one years of
+              steel, gold and the quiet gap between a good watch and a great one.</p>
+            <button class="xray" type="button"><i></i><span>View drawings</span></button>
+          </div>
+          <div class="label">Scroll — 04 acts</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ manifesto ══ -->
+  <section class="sec sec--sheet">
+    <div class="head"><span></span><div class="label">02 — Position</div></div>
+    <div class="man">
+      <p data-split>A watch is an argument about time. Everything else —
+      the box, the strap, the story at the counter — is a conversation
+      that only happens <i class="hl">after the movement is right</i>. We care
+      about the part that has to be right the first time.</p>
+    </div>
+  </section>
+
+  <!-- ══ stats ══ -->
+  <section class="sec" style="padding-top:0">
+    <div class="stats">
+      <div class="stat"><div class="stat__n"><span data-count="148">0</span></div>
+        <div class="stat__l label">Timepieces placed</div></div>
+      <div class="stat"><div class="stat__n"><span data-count="2.4" data-dec="1">0</span><sup>M</sup></div>
+        <div class="stat__l label">Value insured (£)</div></div>
+      <div class="stat"><div class="stat__n"><span data-count="31">0</span></div>
+        <div class="stat__l label">Years trading</div></div>
+      <div class="stat"><div class="stat__n"><span data-count="0">0</span></div>
+        <div class="stat__l label">Returns for fault 2025</div></div>
+    </div>
+  </section>
+
+  <!-- ══ capabilities — horizontal scroll ══ -->
+  <section class="caps" id="caps">
+    <div class="caps__intro">
+      <div class="head"><span></span><div class="label">03 — Collections</div></div>
+      <h2 class="d2">What we<br>actually sell.</h2>
+      <!-- The rail is a programme, so it gets a programme bar: five
+           segments filling continuously as the cards pass. Same rule as
+           the loader tape and the chainage in the footer. -->
+      <div class="capbar" aria-hidden="true"></div>
+    </div>
+    <div class="caps__track">
+      <article class="cap"><div><div class="cap__n">/ 01</div>
+        <h3>Rolex<br>&amp; sports watches</h3>
+        <p>Professional and sports watches, new and pre-owned, each checked
+           on the bench before it leaves the case.</p></div>
+        <div class="cap__art" data-art="dial"></div></article>
+      <article class="cap"><div><div class="cap__n">/ 02</div>
+        <h3>Dress<br>&amp; complications</h3>
+        <p>Thin cases, perpetual calendars and the movements that keep time to the day.</p></div>
+        <div class="cap__art" data-art="bezel"></div></article>
+      <article class="cap"><div><div class="cap__n">/ 03</div>
+        <h3>Bracelets<br>&amp; straps</h3>
+        <p>Oyster, Jubilee and leather: fitted, sized and finished in the workshop.</p></div>
+        <div class="cap__art" data-art="bracelet"></div></article>
+      <article class="cap"><div><div class="cap__n">/ 04</div>
+        <h3>Movements<br>&amp; servicing</h3>
+        <p>Full service, pressure testing and the calibre work nobody sees.</p></div>
+        <div class="cap__art" data-art="movement"></div></article>
+      <article class="cap"><div><div class="cap__n">/ 05</div>
+        <h3>Trade-in<br>&amp; valuation</h3>
+        <p>Honest valuations, insured collection and a same-day answer on your piece.</p></div>
+        <div class="cap__art" data-art="service"></div></article>
+    </div>
+  </section>
+
+  <!-- ══ work ══ -->
+  <section class="sec" id="work">
+    <div class="head"><span></span><div class="label">04 — Selected pieces</div></div>
+    <div class="work__grid">
+      <figure class="plate p1" style="margin:0">
+        <div class="plate__img" data-art="bezel"></div><div class="plate__mask"></div>
+        <figcaption class="plate__cap"><h4>Submariner</h4>
+          <div class="label">Steel — 41 mm</div></figcaption></figure>
+      <figure class="plate p2" style="margin:0">
+        <div class="plate__img" data-art="bracelet"></div><div class="plate__mask"></div>
+        <figcaption class="plate__cap"><h4>Datejust</h4>
+          <div class="label">Oystersteel &amp; gold</div></figcaption></figure>
+      <figure class="plate p3" style="margin:0">
+        <div class="plate__img" data-art="movement"></div><div class="plate__mask"></div>
+        <figcaption class="plate__cap"><h4>Day-Date</h4>
+          <div class="label">18 ct — 36 mm</div></figcaption></figure>
+    </div>
+  </section>
+
+  <div class="marq">
+    <div class="marq__in">
+      <span>Watches <i></i> Gold <i></i> Diamonds <i></i> Service <i></i></span>
+      <span>Watches <i></i> Gold <i></i> Diamonds <i></i> Service <i></i></span>
+    </div>
+  </div>
+
+  <!-- ══ process ══ -->
+  <section class="sec" id="proc">
+    <div class="proc">
+      <!-- A levelling staff, stood beside the tower in the model's own
+           coordinates. Every tick is a floor level projected through the
+           live camera, so the scale leans and foreshortens with the shot
+           instead of being drawn next to it. -->
+      <div class="lvl" aria-hidden="true"><div class="lvl__ticks"></div>
+        <div class="lvl__now"><i></i><b>0.0 m</b></div></div>
+      <div class="proc__sticky">
+        <div class="head"><span></span><div class="label">05 — Craft</div></div>
+        <h2 class="d3">Five steps.<br>No surprises.</h2>
+      </div>
+      <div class="proc__list"><div class="prail" aria-hidden="true"></div>
+        <div class="step"><div class="step__n">01</div><div>
+          <h4>Source &amp; authenticate</h4>
+          <p>Papers before opinions. Every piece is traced and authenticated
+             before it reaches the case.</p></div></div>
+        <div class="step"><div class="step__n">02</div><div>
+          <h4>Bench inspection</h4>
+          <p>Every watch is opened, timed and pressure tested by our watchmaker, not guessed at.</p></div></div>
+        <div class="step"><div class="step__n">03</div><div>
+          <h4>Finish &amp; polish</h4>
+          <p>Case, bezel and bracelet, refinished the way the maker intended and no further.</p></div></div>
+        <div class="step"><div class="step__n">04</div><div>
+          <h4>Presentation</h4>
+          <p>Boxed, papered and photographed so you know exactly what you are buying.</p></div></div>
+        <div class="step"><div class="step__n">05</div><div>
+          <h4>After-care</h4>
+          <p>Service history, warranty and a direct line to the person who sold it to you.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ cta ══ -->
+  <section class="cta" id="contact">
+    <div class="label">06 — Visit the salon</div>
+    <h2 class="d2" style="margin-top:24px">Come and<br>try one on.</h2>
+    <a class="btn" href="#top">Book an appointment <span>→</span></a>
+  </section>
+</main>
+
+<footer class="foot">
+  <!-- The wordmark as a foundation. Capability 01 calls the basements
+       "the part nobody photographs" — so here the brand is drawn the way
+       the building is: solid where it is built, and below the ground
+       line, dashed orange, the way the hero draws a thing before it
+       exists. The ground is ticked like the loader tape. -->
+  <div class="foot__mark" aria-label="Aurum">
+    <svg viewBox="0 0 1000 200" preserveAspectRatio="xMidYMax meet" role="img">
+      <defs>
+        <clipPath id="mkUp"><rect x="-40" y="-60" width="1080" height="175"/></clipPath>
+        <clipPath id="mkDn"><rect x="-40" y="115" width="1080" height="150"/></clipPath>
+      </defs>
+      <g class="mk__ground">
+        <line x1="0" y1="115" x2="1000" y2="115"/>
+        <g class="mk__ticks"></g>
+      </g>
+      <!-- ASSIF is set; the M is still on the hook, out by the mast. The
+           crane traverses it along the whole jib and sets it as the first
+           letter. ASSIF's x is measured at runtime off the width of M in
+           the real face, so the word closes up on the letter's own kerning. -->
+      <text class="mk mk--buried mk__word" clip-path="url(#mkDn)" x="180" y="175">URUM</text>
+      <text class="mk mk--built mk__word"  clip-path="url(#mkUp)" x="180" y="175">URUM</text>
+      <g class="mk__crane"></g>
+      <g class="mk__rig">
+        <line class="mk__rope" x1="0" y1="-300" x2="0" y2="16"/>
+        <g class="mk__hook"><path d="M-13 0h26M0 0v13M-7 13h14v9h-14z"/></g>
+      </g>
+      <g class="mk__set">
+        <text class="mk mk--buried" clip-path="url(#mkDn)" x="20" y="175">A</text>
+        <text class="mk mk--built"  clip-path="url(#mkUp)" x="20" y="175">A</text>
+      </g>
+    </svg>
+  </div>
+  <div class="foot__grid">
+    <div><div class="label">Salon</div><p>12 Hatton Garden<br>London EC1N</p></div>
+    <div><div class="label">Enquiries</div><p>hello@aurum.example<br>+44 20 0000 0000</p></div>
+    <div><div class="label">Accreditation</div><p>Hallmarked<br>Fully insured</p></div>
+    <div><div class="label">Index</div><p>© 2026 Aurum Ltd<br>All rights reserved</p></div>
+  </div>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.13/dist/lenis.min.js"></script>
+
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+/* AURUM page-speed loader. Where the browser can draw WebGL2 in a worker, the 3D runs in massif-fast-gl.js on
+   an OffscreenCanvas and the page runs the speed copy of the page module (massif-fast-scene.js); in the
+   Elementor editor, for reduced motion, without module workers / OffscreenCanvas, or if the worker cannot start
+   (no WebGL2 there, or its file is missing), the original page module runs unchanged. */
+const GL_WORKER = 'js/massif-fast-gl.js', FAST = './js/massif-fast-scene.js', ORIGINAL = './js/massif-scene.js'
+const editor = /[?&]elementor-preview=/.test(location.search) || !!(window.elementorFrontend && elementorFrontend.isEditMode && elementorFrontend.isEditMode())
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches
+const run = url => import(url).catch(e => { document.body.classList.remove('lock'); console.error('AURUM scene failed to load:', e) })
+let three = null, jsm = null
+try { three = import.meta.resolve('three'); jsm = import.meta.resolve('three/addons/') } catch (e) {}
+const canvas = document.getElementById('scene')
+if (editor || calm || !three || !jsm || !canvas || typeof Worker !== 'function' || typeof OffscreenCanvas !== 'function' ||
+    typeof HTMLCanvasElement.prototype.transferControlToOffscreen !== 'function') run(ORIGINAL)
+else {
+  let w = null, decided = false, resolve
+  const els = []
+  const GL = window.__massifGL = { ok: false, busy: false, ready: new Promise(r => { resolve = r }),
+    post: m => w.postMessage(m), idle: () => GL.ok && !GL.busy, frame: m => { GL.busy = true; w.postMessage(m) } }
+  const apply = ops => {
+    for (const o of ops){
+      const el = els[o[0]]
+      if (!el) continue
+      if (o[1] === 's') el.style[o[2]] = o[3]
+      else if (o[1] === 't') el.textContent = o[2]
+      else el.classList.toggle(o[2], o[3])
+    }
+  }
+  const failed = e => {
+    if (!decided){ decided = true; try { w && w.terminate() } catch (x) {} run(ORIGINAL); return }
+    if (GL.dead) return
+    GL.dead = true; GL.ok = false; resolve()
+    console.error('AURUM scene failed to load:', e)
+  }
+  const start = () => {
+    let off
+    try { off = canvas.transferControlToOffscreen() } catch (e) { failed(e); return }
+    decided = true
+    /* the elements the worker's telemetry and annotations write to, in the order it addresses them */
+    const q = {}, qa = { '[data-hud]': [] }
+    const add = (sel, el) => { if (!el) return; els.push(el); q[sel] = els.length - 1 }
+    add('.hud', document.querySelector('.hud'))
+    add('.notes', document.querySelector('.notes'))
+    add('.hud__bar i', document.querySelector('.hud__bar i'))
+    document.querySelectorAll('[data-note]').forEach(el => add('[data-note="' + el.getAttribute('data-note') + '"]', el))
+    document.querySelectorAll('[data-hud]').forEach(el => { els.push(el); qa['[data-hud]'].push([els.length - 1, { hud: el.getAttribute('data-hud') }]) })
+    /* the page's Archivo / JetBrains Mono faces, for the crane's name board and the site grid: @font-face
+       rules the page can read, plus any Google Fonts stylesheet it cannot read, which the worker fetches */
+    const faces = [], css = []
+    for (const sh of document.styleSheets){
+      let rules
+      try { rules = sh.cssRules } catch (x) { if (/fonts\.googleapis\.com\/css/.test(sh.href || '')) css.push(sh.href); continue }
+      for (const r of rules || []){
+        if (r.type !== 5 || !/^["']?(Archivo|JetBrains Mono)["']?$/.test(r.style.getPropertyValue('font-family').trim())) continue
+        const g = k => r.style.getPropertyValue(k).trim()
+        faces.push({ family: g('font-family').replace(/^["']|["']$/g, ''), weight: g('font-weight') || '400', style: g('font-style') || 'normal',
+          stretch: g('font-stretch') || 'normal', range: g('unicode-range') || 'U+0-10FFFF',
+          src: g('src').replace(/url\((["']?)([^"')]+)\1\)/g, (m, qq, u) => 'url("' + new URL(u, sh.href || location.href).href + '")') })
+      }
+    }
+    w.postMessage({ t: 'init', canvas: off, w: innerWidth, h: innerHeight, dpr: window.devicePixelRatio || 1, three,
+      addons: { env: jsm + 'environments/RoomEnvironment.js', utils: jsm + 'utils/BufferGeometryUtils.js', gpgpu: jsm + 'misc/GPUComputationRenderer.js' },
+      fontFaces: faces, fontCss: css, q, qa }, [off])
+    run(FAST)
+  }
+  try { w = new Worker(GL_WORKER, { type: 'module' }) } catch (e) { failed(e) }
+  if (w){
+    w.onerror = e => failed(e && e.message || e)
+    w.onmessage = e => {
+      const m = e.data
+      if (m.t === 'caps'){ if (decided) return; if (m.ok) start(); else failed('no WebGL2 in a worker') }
+      else if (m.t === 'ready'){ apply(m.ops); GL.ok = true; resolve() }
+      else if (m.t === 'f'){ apply(m.ops); GL.busy = false }
+      else if (m.t === 'fail') failed(m.e)
+    }
+  }
+}
+</script>
+</body>
+</html>
